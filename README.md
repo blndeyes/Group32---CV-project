@@ -8,24 +8,32 @@ Phase 1 — Two-View SfM
 
 Phase 2 — Incremental SfM (Implementation Attempt)
 
-Final Reconstruction
+Final Reconstruction:
 Because incremental drift made the map unstable, Agisoft Metashape was used for:
-Dense matching over 32 images
-Bundle adjustment
-Export of clean point cloud (PLY)
+
+Dense matching over 32 images,
+Bundle adjustment,
+Export of clean point cloud (PLY),
 Export of optimized camera poses as 4×4 matrices
+
 Virtual Tour Viewer (Three.js)
+
 Recommended libraries:
+
 numpy
 opencv-python
 matplotlib
 scipy
 tqdm
 scikit-image (optional)
+
 Viewer (Web App)
 Three.js r128
+
 A local HTTP server (Python, Node, or VSCode’s Live Server)
+
 No additional build tools required.
+
 Repository Structure:
 
 3d_virtual_app/
