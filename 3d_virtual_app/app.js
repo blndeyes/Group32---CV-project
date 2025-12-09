@@ -1,9 +1,3 @@
-/**
- * Virtual Tour Application - Optimized Version
- * Open3D-style point cloud viewer with camera navigation
- */
-
-// Global variables
 let scene, camera, renderer, controls;
 let pointCloud;
 let cameraMarkers = [];
@@ -12,12 +6,11 @@ let cameraData = [];
 let currentCameraIndex = 0;
 let isTransitioning = false;
 
-// Configuration
 const config = {
-    transitionDuration: 1.5, // seconds - faster transitions
-    pointSize: 0.01, // smaller default, will auto-adjust
+    transitionDuration: 1.2,
+    pointSize: 0.01,
     cameraMarkerSize: 0.005,
-    maxConnectionDistance: 1.5, // meters
+    maxConnectionDistance: 1.5,
     backgroundColor: 0x1a1a2e,
     cameraMarkerColor: 0x00ff00,
     currentCameraColor: 0xff0000,
@@ -25,23 +18,17 @@ const config = {
     connectionColor: 0x444444
 };
 
-/**
- * Initialize the Three.js scene
- */
 function initScene() {
-    // Create scene
     scene = new THREE.Scene();
     scene.background = new THREE.Color(config.backgroundColor);
     
-    // Create camera with better near plane
     camera = new THREE.PerspectiveCamera(
-        60, // FOV - slightly narrower for better depth
+        60,
         window.innerWidth / window.innerHeight,
-        0.001, // Very close near plane
-        1000  // Far plane
+        0.01,
+        1000
     );
 
-    // Create renderer with optimizations
     const canvas = document.getElementById('canvas3d');
     renderer = new THREE.WebGLRenderer({
         canvas: canvas,
@@ -49,7 +36,7 @@ function initScene() {
         powerPreference: "high-performance"
     });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap at 2x for performance
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
@@ -63,13 +50,13 @@ function initScene() {
     scene.add(directionalLight2);
 
     controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enabled = true;
     controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.screenSpacePanning = false;
+    controls.dampingFactor = 0.08;
+    controls.screenSpacePanning = true;
     controls.minDistance = 0.1;
     controls.maxDistance = 50;
     controls.maxPolarAngle = Math.PI;
+    controls.rotateSpeed = 0.5;
 
     // Handle window resize
     window.addEventListener('resize', onWindowResize);
@@ -81,19 +68,13 @@ async function loadCameraData() {
     
     try {
         const response = await fetch('cameras.json');
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         
         const data = await response.json();
         cameraData = data.cameras;
-        
-        console.log(`loaded ${cameraData.length} cameras`);
-        
         return true;
     } catch (error) {
         console.error('Error loading camera data:', error);
-        alert('failed to load camera data. Make sure cameras.json exists.');
         return false;
     }
 }
@@ -107,58 +88,38 @@ async function loadPointCloud() {
         
         loader.load(
             'agisoft_pointcloud.ply',
-            
             (geometry) => {
-                const pointCount = geometry.attributes.position.count;
-                console.log(`Loaded point cloud: ${pointCount.toLocaleString()} points`);
-                
-                // compute bounding box for auto-sizing
                 geometry.computeBoundingBox();
                 const box = geometry.boundingBox;
                 const size = new THREE.Vector3();
                 box.getSize(size);
                 const sceneSize = size.length();
                 
-                console.log(`Scene size: ${sceneSize.toFixed(2)} units`);
-                
-                // Auto-adjust point size based on scene
                 config.pointSize = Math.max(0.005, Math.min(0.05, sceneSize / 300));
                 config.cameraMarkerSize = Math.max(0.005, Math.min(0.03, sceneSize / 200));
-                
-                console.log(`  Auto-adjusted point size: ${config.pointSize.toFixed(4)}`);
-                console.log(`  Auto-adjusted marker size: ${config.cameraMarkerSize.toFixed(3)}`);
                 
                 const material = new THREE.PointsMaterial({
                     size: config.pointSize,
                     vertexColors: geometry.attributes.color ? true : false,
-                    sizeAttenuation: true,
-                    transparent: false,
-                    fog: false
+                    sizeAttenuation: true
                 });
                 
-                // If no colors, use light gray
                 if (!geometry.attributes.color) {
                     material.color = new THREE.Color(0xcccccc);
                 }
                 
                 pointCloud = new THREE.Points(geometry, material);
                 scene.add(pointCloud);
-                
                 resolve(geometry);
             },
-            
-            // onProgress callback
             (xhr) => {
                 if (xhr.lengthComputable) {
                     const percentComplete = (xhr.loaded / xhr.total) * 100;
                     updateLoadingProgress(percentComplete * 0.7);
                 }
             },
-            
-            // onError callback
             (error) => {
                 console.error('Error loading point cloud:', error);
-                alert('Could not load point cloud. Make sure agisoft_pointcloud.ply exists.');
                 reject(error);
             }
         );
@@ -170,7 +131,6 @@ function createCameraMarkers() {
     updateLoadingStatus('Creating camera markers...');
     
     cameraData.forEach((cam, index) => {
-        // Create camera marker (sphere)
         const geometry = new THREE.SphereGeometry(config.cameraMarkerSize, 16, 16);
         const material = new THREE.MeshStandardMaterial({
             color: config.cameraMarkerColor,
@@ -180,29 +140,21 @@ function createCameraMarkers() {
             roughness: 0.7
         });
         const marker = new THREE.Mesh(geometry, material);
-        
-        // Position at camera center
         marker.position.set(cam.center[0], cam.center[1], cam.center[2]);
         marker.userData = { cameraIndex: index, cameraData: cam };
         
         scene.add(marker);
         cameraMarkers.push(marker);
     });
-    
-    console.log(`Created ${cameraMarkers.length} camera markers`);
 }
 
 
 function buildViewGraph() {
     updateLoadingStatus('Building view graph...');
     
-    // clear existing connections
     cameraConnections.forEach(line => scene.remove(line));
     cameraConnections = [];
     
-    let connectionCount = 0;
-    
-    // connect cameras based on distance
     for (let i = 0; i < cameraData.length; i++) {
         const pos1 = new THREE.Vector3(...cameraData[i].center);
         
@@ -220,19 +172,14 @@ function buildViewGraph() {
                 const line = new THREE.Line(geometry, material);
                 scene.add(line);
                 cameraConnections.push(line);
-                connectionCount++;
             }
         }
     }
-    
-    console.log(`Created ${connectionCount} camera connections`);
 }
 
 
 function initializeCamera() {
     if (cameraData.length === 0) return;
-    
-    // set to first camera without animation
     setCameraFromData(0, false);
     currentCameraIndex = 0;
     updateCameraMarkerColors();
@@ -249,27 +196,25 @@ function setCameraFromData(index, animate = false) {
     const camData = cameraData[index];
     
     if (!animate) {
-        // Instant positioning - place viewer camera AT this camera's position
         camera.position.set(camData.center[0], camData.center[1], camData.center[2]);
         
-        // Use rotation matrix directly from camera data
         const R = camData.rotation;
         const rotationMatrix = new THREE.Matrix4();
         
-        // Apply rotation matrix as-is (no transpose)
         rotationMatrix.set(
-            R[0][0], R[0][1], R[0][2], 0,
-            R[1][0], R[1][1], R[1][2], 0,
-            R[2][0], R[2][1], R[2][2], 0,
+            R[0][0], R[0][1], -R[0][2], 0,
+            R[1][0], R[1][1], -R[1][2], 0,
+            R[2][0], R[2][1], -R[2][2], 0,
             0, 0, 0, 1
         );
         
         camera.quaternion.setFromRotationMatrix(rotationMatrix);
         
-        controls.target.copy(camera.position);
-        controls.update();
+        const forward = new THREE.Vector3(0, 0, -1);
+        forward.applyQuaternion(camera.quaternion);
         
-        console.log(`Camera positioned at: [${camData.center[0].toFixed(2)}, ${camData.center[1].toFixed(2)}, ${camData.center[2].toFixed(2)}]`);
+        controls.target.copy(camera.position).add(forward.multiplyScalar(2.0));
+        controls.update();
     } else {
         navigateToCamera(index);
     }
@@ -277,75 +222,54 @@ function setCameraFromData(index, animate = false) {
 
 
 function navigateToCamera(targetIndex) {
-    if (isTransitioning || targetIndex === currentCameraIndex) {
-        return;
-    }
-    
-    if (targetIndex < 0 || targetIndex >= cameraData.length) {
-        console.warn(`Invalid camera index: ${targetIndex}`);
-        return;
-    }
-    
-    console.log(`\n Navigating to camera ${targetIndex + 1}/${cameraData.length}`);
+    if (isTransitioning || targetIndex === currentCameraIndex) return;
+    if (targetIndex < 0 || targetIndex >= cameraData.length) return;
     
     isTransitioning = true;
     
-    const startCam = cameraData[currentCameraIndex];
+    const startPos = camera.position.clone();
+    const startQuat = camera.quaternion.clone();
+    const startTarget = controls.target.clone();
+    
     const endCam = cameraData[targetIndex];
-    
-    // Starting values
-    const startPos = new THREE.Vector3(...startCam.center);
-    const startQuat = new THREE.Quaternion();
-    const startR = startCam.rotation;
-    // Use rotation matrix as-is
-    startQuat.setFromRotationMatrix(new THREE.Matrix4().set(
-        startR[0][0], startR[0][1], startR[0][2], 0,
-        startR[1][0], startR[1][1], startR[1][2], 0,
-        startR[2][0], startR[2][1], startR[2][2], 0,
-        0, 0, 0, 1
-    ));
-    
-    // Target values
     const endPos = new THREE.Vector3(...endCam.center);
-    const endQuat = new THREE.Quaternion();
-    const endR = endCam.rotation;
-    endQuat.setFromRotationMatrix(new THREE.Matrix4().set(
-        endR[0][0], endR[0][1], endR[0][2], 0,
-        endR[1][0], endR[1][1], endR[1][2], 0,
-        endR[2][0], endR[2][1], endR[2][2], 0,
-        0, 0, 0, 1
-    ));
     
-    // Animate transition
+    const R = endCam.rotation;
+    const endRotMatrix = new THREE.Matrix4();
+    endRotMatrix.set(
+        R[0][0], R[0][1], -R[0][2], 0,
+        R[1][0], R[1][1], -R[1][2], 0,
+        R[2][0], R[2][1], -R[2][2], 0,
+        0, 0, 0, 1
+    );
+    
+    const endQuat = new THREE.Quaternion();
+    endQuat.setFromRotationMatrix(endRotMatrix);
+    
+    const endForward = new THREE.Vector3(0, 0, -1);
+    endForward.applyQuaternion(endQuat);
+    const endTarget = endPos.clone().add(endForward.multiplyScalar(2.0));
+    
     const startTime = performance.now();
     const duration = config.transitionDuration * 1000;
     
     function animate(currentTime) {
         const elapsed = currentTime - startTime;
         const t = Math.min(elapsed / duration, 1.0);
-        
-        // Smooth easing
         const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
         
-        // Lerp position
         camera.position.lerpVectors(startPos, endPos, eased);
-        
-        // Slerp quaternion for smooth rotation
         camera.quaternion.slerpQuaternions(startQuat, endQuat, eased);
-        
-        // Update orbit controls target to camera position (orbit around camera)
-        controls.target.copy(camera.position);
+        controls.target.lerpVectors(startTarget, endTarget, eased);
         controls.update();
         
         if (t < 1.0) {
             requestAnimationFrame(animate);
         } else {
-            // Transition complete
             isTransitioning = false;
             currentCameraIndex = targetIndex;
             updateCameraMarkerColors();
             updateUI();
-            console.log('✓ Transition complete');
         }
     }
     
@@ -387,11 +311,7 @@ function updateUI() {
         `Camera ${currentCameraIndex + 1} / ${cameraData.length}`;
 }
 
-/**
- * Setup event listeners
- */
 function setupEventListeners() {
-    // Click on camera markers
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     
@@ -414,7 +334,6 @@ function setupEventListeners() {
         }
     });
     
-    // Hover effect
     renderer.domElement.addEventListener('mousemove', (event) => {
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -425,7 +344,6 @@ function setupEventListeners() {
         renderer.domElement.style.cursor = intersects.length > 0 ? 'pointer' : 'default';
     });
     
-    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if (isTransitioning) return;
         
@@ -433,34 +351,28 @@ function setupEventListeners() {
             case 'ArrowLeft':
             case 'a':
             case 'A':
-                // Previous camera
                 const prevIndex = (currentCameraIndex - 1 + cameraData.length) % cameraData.length;
                 navigateToCamera(prevIndex);
                 break;
             case 'ArrowRight':
             case 'd':
             case 'D':
-                // Next camera
                 const nextIndex = (currentCameraIndex + 1) % cameraData.length;
                 navigateToCamera(nextIndex);
                 break;
             case 'Home':
-                // Go to first camera
                 navigateToCamera(0);
                 break;
             case 'End':
-                // Go to last camera
                 navigateToCamera(cameraData.length - 1);
                 break;
         }
     });
     
-    // Toggle point cloud visibility
     document.addEventListener('keydown', (e) => {
         if (e.key === 'p' || e.key === 'P') {
             if (pointCloud) {
                 pointCloud.visible = !pointCloud.visible;
-                console.log(`Point cloud: ${pointCloud.visible ? 'ON' : 'OFF'}`);
             }
         }
     });
@@ -509,7 +421,6 @@ function hideLoadingScreen() {
 
 async function init() {
     try {
-        console.log('=== Virtual Tour - Optimized Version ===');
         updateLoadingProgress(10);
         
         initScene();
@@ -519,42 +430,26 @@ async function init() {
         if (!camerasLoaded) return;
         updateLoadingProgress(40);
         
-        // Load point cloud
         try {
             await loadPointCloud();
         } catch (error) {
-            console.warn('Point cloud not loaded, continuing with camera visualization only');
+            console.warn('Point cloud not loaded');
         }
         updateLoadingProgress(80);
         
         createCameraMarkers();
-        buildViewGraph();
         updateLoadingProgress(90);
         
         initializeCamera();
-        
-        // Setup UI
         setupEventListeners();
         updateLoadingProgress(100);
         
         hideLoadingScreen();
-        
-        // start animation loop
         animate();
         
-        console.log('✓ Virtual tour initialized successfully!');
-        console.log('Controls:');
-        console.log('  - Click camera markers to navigate');
-        console.log('  - Arrow keys (← →) or A/D to switch cameras');
-        console.log('  - Mouse drag to orbit, scroll to zoom');
-        console.log('  - Press P to toggle point cloud visibility');
-        console.log('  - Home/End to jump to first/last camera');
-        
     } catch (error) {
-        console.error('Error initializing virtual tour:', error);
-        alert('Failed to initialize virtual tour. Check console for details.');
+        console.error('Error initializing:', error);
     }
 }
 
-// start the application when the page loads
 window.addEventListener('DOMContentLoaded', init);
