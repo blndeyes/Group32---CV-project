@@ -203,7 +203,6 @@
             background: #004400;
         }
 
-        /* Responsive */
         @media (max-width: 768px) {
             #instructions {
                 display: none;
@@ -225,7 +224,6 @@
 </head>
 <body>
     <div id="container">
-        <!-- Loading Screen -->
         <div id="loading-screen">
             <div class="loading-content">
                 <div class="spinner"></div>
@@ -237,15 +235,12 @@
             </div>
         </div>
 
-        <!-- Three.js Canvas -->
         <canvas id="canvas3d"></canvas>
 
-        <!-- Minimal Info Panel - Bottom Left -->
         <div id="info-panel">
             <span id="camera-info">Camera 1 / 0</span>
         </div>
 
-        <!-- Instructions - Top Right -->
         <div id="instructions">
             <h3>🎮 Controls</h3>
             <div class="control-line">
@@ -283,16 +278,12 @@
         </div>
     </div>
 
-    <!-- Three.js Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     
-    <!-- OrbitControls -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     
-    <!-- PLY Loader -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/PLYLoader.js"></script>
     
-    <!-- Main Application Script -->
     <script src="app.js"></script>
 </body>
 </html>
