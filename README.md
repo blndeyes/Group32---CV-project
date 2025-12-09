@@ -3,8 +3,11 @@
 CS436 – Computer Vision Fundamentals
 Group 32 – Structure-from-Motion + Virtual Tour Viewer
 This repository contains our implementation for the CS436 project. The work is split into the two reconstruction phases required for the course, plus a final interactive 3D virtual tour built using Three.js. The final reconstruction is based on Agisoft Metashape outputs because the incremental SfM pipeline (Phase 2) accumulated drift.
+
 Phase 1 — Two-View SfM
+
 Phase 2 — Incremental SfM (Implementation Attempt)
+
 Final Reconstruction
 Because incremental drift made the map unstable, Agisoft Metashape was used for:
 Dense matching over 32 images
