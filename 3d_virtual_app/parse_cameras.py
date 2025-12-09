@@ -1,13 +1,20 @@
-#!/usr/bin/env python3
 """
 Camera Position Parser for Three.js Virtual Tour
 Parses Agisoft XML camera data and converts to JSON format suitable for Three.js
 """
 
+import os
+import sys
+
+# Suppress all NumPy warnings before importing
+os.environ['PYTHONWARNINGS'] = 'ignore'
+
+import warnings
+warnings.filterwarnings('ignore')
+
 import xml.etree.ElementTree as ET
 import numpy as np
 import json
-import sys
 
 
 def parse_transform_matrix(transform_str):
@@ -83,13 +90,11 @@ def parse_camera_xml(xml_file):
         transform_str = transform_elem.text
         
         try:
-            # Parse the transformation matrix
             R, t = parse_transform_matrix(transform_str)
             
             # Compute the actual camera center
             C = compute_camera_center(R, t)
             
-            # Store camera data
             camera_data = {
                 'id': int(camera_id),
                 'label': label,
@@ -112,9 +117,6 @@ def parse_camera_xml(xml_file):
 
 
 def save_cameras_json(cameras, output_file):
-    """
-    Save camera data to JSON file in a format suitable for Three.js.
-    """
     output_data = {
         'cameras': cameras,
         'metadata': {
@@ -130,50 +132,17 @@ def save_cameras_json(cameras, output_file):
     print(f"Camera data saved to: {output_file}")
 
 
-def print_camera_stats(cameras):
-    """
-    Print statistics about the parsed cameras.
-    """
-    if not cameras:
-        return
-    
-    centers = np.array([cam['center'] for cam in cameras])
-    
-    print("\n=== Camera Statistics ===")
-    print(f"Number of cameras: {len(cameras)}")
-    print(f"\nCamera center bounds:")
-    print(f"  X: [{centers[:, 0].min():.3f}, {centers[:, 0].max():.3f}]")
-    print(f"  Y: [{centers[:, 1].min():.3f}, {centers[:, 1].max():.3f}]")
-    print(f"  Z: [{centers[:, 2].min():.3f}, {centers[:, 2].max():.3f}]")
-    print(f"\nScene center (mean): [{centers.mean(axis=0)[0]:.3f}, "
-          f"{centers.mean(axis=0)[1]:.3f}, {centers.mean(axis=0)[2]:.3f}]")
-    
-    # Calculate pairwise distances
-    distances = []
-    for i in range(len(centers)):
-        for j in range(i + 1, len(centers)):
-            dist = np.linalg.norm(centers[i] - centers[j])
-            distances.append(dist)
-    
-    if distances:
-        print(f"\nCamera spacing:")
-        print(f"  Min distance: {min(distances):.3f}")
-        print(f"  Max distance: {max(distances):.3f}")
-        print(f"  Mean distance: {np.mean(distances):.3f}")
-
-
 def main():
     if len(sys.argv) < 2:
         print("Usage: python parse_cameras.py <input_xml> [output_json]")
         print("\nExample:")
-        print("  python parse_cameras.py camera_positions.xml cameras.json")
+        print("  python parse_cameras.py camera_positions.xml cameras1.json")
         sys.exit(1)
     
     input_xml = sys.argv[1]
-    output_json = sys.argv[2] if len(sys.argv) > 2 else 'cameras.json'
+    output_json = sys.argv[2] if len(sys.argv) > 2 else 'cameras1.json'
     
     print(f"Parsing camera data from: {input_xml}")
-    print("-" * 50)
     
     try:
         cameras = parse_camera_xml(input_xml)
@@ -181,24 +150,11 @@ def main():
         if not cameras:
             print("Error: No cameras were parsed successfully")
             sys.exit(1)
-        
-        print_camera_stats(cameras)
-        
+                
         save_cameras_json(cameras, output_json)
-        
-        print("\n✓ Parsing complete!")
-        print(f"\nNext steps:")
-        print(f"  1. Place {output_json} in the same directory as your HTML file")
-        print(f"  2. Open index.html in a web browser")
-        print(f"  3. Navigate between camera positions in the virtual tour")
         
     except FileNotFoundError:
         print(f"Error: Could not find file: {input_xml}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
         sys.exit(1)
 
 
