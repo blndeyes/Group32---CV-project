@@ -16,7 +16,7 @@ let isTransitioning = false;
 const config = {
     transitionDuration: 1.5, // seconds - faster transitions
     pointSize: 0.01, // smaller default, will auto-adjust
-    cameraMarkerSize: 0.05,
+    cameraMarkerSize: 0.005,
     maxConnectionDistance: 1.5, // meters
     backgroundColor: 0x1a1a2e,
     cameraMarkerColor: 0x00ff00,
@@ -37,7 +37,7 @@ function initScene() {
     camera = new THREE.PerspectiveCamera(
         60, // FOV - slightly narrower for better depth
         window.innerWidth / window.innerHeight,
-        1, // Very close near plane
+        0.001, // Very close near plane
         1000  // Far plane
     );
 
@@ -51,7 +51,6 @@ function initScene() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap at 2x for performance
 
-    // Add lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
 
@@ -63,7 +62,6 @@ function initScene() {
     directionalLight2.position.set(-5, -5, -5);
     scene.add(directionalLight2);
 
-    // Initialize orbit controls (ENABLED by default - like Open3D)
     controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enabled = true;
     controls.enableDamping = true;
@@ -77,9 +75,7 @@ function initScene() {
     window.addEventListener('resize', onWindowResize);
 }
 
-/**
- * Load and parse camera data from JSON
- */
+
 async function loadCameraData() {
     updateLoadingStatus('Loading camera data...');
     
@@ -92,19 +88,17 @@ async function loadCameraData() {
         const data = await response.json();
         cameraData = data.cameras;
         
-        console.log(`✓ Loaded ${cameraData.length} cameras`);
+        console.log(`loaded ${cameraData.length} cameras`);
         
         return true;
     } catch (error) {
         console.error('Error loading camera data:', error);
-        alert('Failed to load camera data. Please ensure cameras.json is in the same directory.');
+        alert('failed to load camera data. Make sure cameras.json exists.');
         return false;
     }
 }
 
-/**
- * Load point cloud from PLY file
- */
+
 async function loadPointCloud() {
     updateLoadingStatus('Loading point cloud...');
     
@@ -114,28 +108,26 @@ async function loadPointCloud() {
         loader.load(
             'agisoft_pointcloud.ply',
             
-            // onLoad callback
             (geometry) => {
                 const pointCount = geometry.attributes.position.count;
-                console.log(`✓ Loaded point cloud: ${pointCount.toLocaleString()} points`);
+                console.log(`Loaded point cloud: ${pointCount.toLocaleString()} points`);
                 
-                // Compute bounding box for auto-sizing
+                // compute bounding box for auto-sizing
                 geometry.computeBoundingBox();
                 const box = geometry.boundingBox;
                 const size = new THREE.Vector3();
                 box.getSize(size);
                 const sceneSize = size.length();
                 
-                console.log(`  Scene size: ${sceneSize.toFixed(2)} units`);
+                console.log(`Scene size: ${sceneSize.toFixed(2)} units`);
                 
                 // Auto-adjust point size based on scene
                 config.pointSize = Math.max(0.005, Math.min(0.05, sceneSize / 300));
-                config.cameraMarkerSize = Math.max(0.03, Math.min(0.15, sceneSize / 40));
+                config.cameraMarkerSize = Math.max(0.005, Math.min(0.03, sceneSize / 200));
                 
                 console.log(`  Auto-adjusted point size: ${config.pointSize.toFixed(4)}`);
                 console.log(`  Auto-adjusted marker size: ${config.cameraMarkerSize.toFixed(3)}`);
                 
-                // Create point cloud material
                 const material = new THREE.PointsMaterial({
                     size: config.pointSize,
                     vertexColors: geometry.attributes.color ? true : false,
@@ -149,7 +141,6 @@ async function loadPointCloud() {
                     material.color = new THREE.Color(0xcccccc);
                 }
                 
-                // Create point cloud
                 pointCloud = new THREE.Points(geometry, material);
                 scene.add(pointCloud);
                 
@@ -174,9 +165,7 @@ async function loadPointCloud() {
     });
 }
 
-/**
- * Create visual markers for camera positions
- */
+
 function createCameraMarkers() {
     updateLoadingStatus('Creating camera markers...');
     
@@ -200,22 +189,20 @@ function createCameraMarkers() {
         cameraMarkers.push(marker);
     });
     
-    console.log(`✓ Created ${cameraMarkers.length} camera markers`);
+    console.log(`Created ${cameraMarkers.length} camera markers`);
 }
 
-/**
- * Build view graph connecting nearby cameras
- */
+
 function buildViewGraph() {
     updateLoadingStatus('Building view graph...');
     
-    // Clear existing connections
+    // clear existing connections
     cameraConnections.forEach(line => scene.remove(line));
     cameraConnections = [];
     
     let connectionCount = 0;
     
-    // Connect cameras based on distance
+    // connect cameras based on distance
     for (let i = 0; i < cameraData.length; i++) {
         const pos1 = new THREE.Vector3(...cameraData[i].center);
         
@@ -223,7 +210,6 @@ function buildViewGraph() {
             const pos2 = new THREE.Vector3(...cameraData[j].center);
             const distance = pos1.distanceTo(pos2);
             
-            // Connect if within threshold distance
             if (distance < config.maxConnectionDistance) {
                 const geometry = new THREE.BufferGeometry().setFromPoints([pos1, pos2]);
                 const material = new THREE.LineBasicMaterial({
@@ -239,16 +225,14 @@ function buildViewGraph() {
         }
     }
     
-    console.log(`✓ Created ${connectionCount} camera connections`);
+    console.log(`Created ${connectionCount} camera connections`);
 }
 
-/**
- * Initialize camera at the first position with proper view
- */
+
 function initializeCamera() {
     if (cameraData.length === 0) return;
     
-    // Set to first camera without animation
+    // set to first camera without animation
     setCameraFromData(0, false);
     currentCameraIndex = 0;
     updateCameraMarkerColors();
@@ -268,35 +252,30 @@ function setCameraFromData(index, animate = false) {
         // Instant positioning - place viewer camera AT this camera's position
         camera.position.set(camData.center[0], camData.center[1], camData.center[2]);
         
-        // CRITICAL FIX: The rotation matrix from SfM is R_world_to_camera
-        // We need R_camera_to_world = R^T (transpose) to look OUT from the camera
+        // Use rotation matrix directly from camera data
         const R = camData.rotation;
         const rotationMatrix = new THREE.Matrix4();
         
-        // Transpose the rotation matrix (invert the view direction)
+        // Apply rotation matrix as-is (no transpose)
         rotationMatrix.set(
-            R[0][0], R[1][0], R[2][0], 0,  // Note: swapped indices
-            R[0][1], R[1][1], R[2][1], 0,  // This transposes the matrix
-            R[0][2], R[1][2], R[2][2], 0,  // Now we look OUT from camera
+            R[0][0], R[0][1], R[0][2], 0,
+            R[1][0], R[1][1], R[1][2], 0,
+            R[2][0], R[2][1], R[2][2], 0,
             0, 0, 0, 1
         );
         
         camera.quaternion.setFromRotationMatrix(rotationMatrix);
         
-        // Set orbit controls target to camera position (orbit around camera)
         controls.target.copy(camera.position);
         controls.update();
         
-        console.log(`✓ Camera positioned at: [${camData.center[0].toFixed(2)}, ${camData.center[1].toFixed(2)}, ${camData.center[2].toFixed(2)}]`);
+        console.log(`Camera positioned at: [${camData.center[0].toFixed(2)}, ${camData.center[1].toFixed(2)}, ${camData.center[2].toFixed(2)}]`);
     } else {
-        // Animated transition
         navigateToCamera(index);
     }
 }
 
-/**
- * Navigate to a specific camera with smooth transition
- */
+
 function navigateToCamera(targetIndex) {
     if (isTransitioning || targetIndex === currentCameraIndex) {
         return;
@@ -307,7 +286,7 @@ function navigateToCamera(targetIndex) {
         return;
     }
     
-    console.log(`\n→ Navigating to camera ${targetIndex + 1}/${cameraData.length}`);
+    console.log(`\n Navigating to camera ${targetIndex + 1}/${cameraData.length}`);
     
     isTransitioning = true;
     
@@ -318,11 +297,11 @@ function navigateToCamera(targetIndex) {
     const startPos = new THREE.Vector3(...startCam.center);
     const startQuat = new THREE.Quaternion();
     const startR = startCam.rotation;
-    // Transpose the rotation matrix (invert view direction)
+    // Use rotation matrix as-is
     startQuat.setFromRotationMatrix(new THREE.Matrix4().set(
-        startR[0][0], startR[1][0], startR[2][0], 0,
-        startR[0][1], startR[1][1], startR[2][1], 0,
-        startR[0][2], startR[1][2], startR[2][2], 0,
+        startR[0][0], startR[0][1], startR[0][2], 0,
+        startR[1][0], startR[1][1], startR[1][2], 0,
+        startR[2][0], startR[2][1], startR[2][2], 0,
         0, 0, 0, 1
     ));
     
@@ -330,11 +309,10 @@ function navigateToCamera(targetIndex) {
     const endPos = new THREE.Vector3(...endCam.center);
     const endQuat = new THREE.Quaternion();
     const endR = endCam.rotation;
-    // Transpose the rotation matrix (invert view direction)
     endQuat.setFromRotationMatrix(new THREE.Matrix4().set(
-        endR[0][0], endR[1][0], endR[2][0], 0,
-        endR[0][1], endR[1][1], endR[2][1], 0,
-        endR[0][2], endR[1][2], endR[2][2], 0,
+        endR[0][0], endR[0][1], endR[0][2], 0,
+        endR[1][0], endR[1][1], endR[1][2], 0,
+        endR[2][0], endR[2][1], endR[2][2], 0,
         0, 0, 0, 1
     ));
     
@@ -374,26 +352,20 @@ function navigateToCamera(targetIndex) {
     requestAnimationFrame(animate);
 }
 
-/**
- * Update camera marker colors to highlight current camera
- */
+
 function updateCameraMarkerColors() {
     cameraMarkers.forEach((marker, index) => {
         if (index === currentCameraIndex) {
-            // Current camera - bright green
             marker.material.color.setHex(config.currentCameraColor);
             marker.material.emissive.setHex(config.currentCameraColor);
             marker.material.emissiveIntensity = 1.0;
         } else {
-            // Check if connected to current camera
             const isConnected = isConnectedToCurrentCamera(index);
             if (isConnected) {
-                // Connected camera - orange
                 marker.material.color.setHex(config.connectedCameraColor);
                 marker.material.emissive.setHex(config.connectedCameraColor);
                 marker.material.emissiveIntensity = 0.7;
             } else {
-                // Not connected - dim green
                 marker.material.color.setHex(0x004400);
                 marker.material.emissive.setHex(0x002200);
                 marker.material.emissiveIntensity = 0.2;
@@ -402,9 +374,7 @@ function updateCameraMarkerColors() {
     });
 }
 
-/**
- * Check if a camera is connected to the current camera
- */
+
 function isConnectedToCurrentCamera(targetIndex) {
     const currentPos = new THREE.Vector3(...cameraData[currentCameraIndex].center);
     const targetPos = new THREE.Vector3(...cameraData[targetIndex].center);
@@ -412,9 +382,6 @@ function isConnectedToCurrentCamera(targetIndex) {
     return distance < config.maxConnectionDistance;
 }
 
-/**
- * Update UI elements
- */
 function updateUI() {
     document.getElementById('camera-info').textContent = 
         `Camera ${currentCameraIndex + 1} / ${cameraData.length}`;
@@ -499,31 +466,22 @@ function setupEventListeners() {
     });
 }
 
-/**
- * Animation loop
- */
+
 function animate() {
     requestAnimationFrame(animate);
     
-    // Update controls
     controls.update();
     
-    // Render scene
     renderer.render(scene, camera);
 }
 
-/**
- * Handle window resize
- */
 function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-/**
- * Update loading screen
- */
+
 function updateLoadingStatus(message) {
     const statusEl = document.getElementById('loading-status');
     if (statusEl) {
@@ -548,19 +506,15 @@ function hideLoadingScreen() {
     }
 }
 
-/**
- * Initialize and start the application
- */
+
 async function init() {
     try {
         console.log('=== Virtual Tour - Optimized Version ===');
         updateLoadingProgress(10);
         
-        // Initialize scene
         initScene();
         updateLoadingProgress(20);
         
-        // Load camera data
         const camerasLoaded = await loadCameraData();
         if (!camerasLoaded) return;
         updateLoadingProgress(40);
@@ -573,22 +527,19 @@ async function init() {
         }
         updateLoadingProgress(80);
         
-        // Create camera markers and view graph
         createCameraMarkers();
         buildViewGraph();
         updateLoadingProgress(90);
         
-        // Initialize camera position at first camera
         initializeCamera();
         
         // Setup UI
         setupEventListeners();
         updateLoadingProgress(100);
         
-        // Hide loading screen
         hideLoadingScreen();
         
-        // Start animation loop
+        // start animation loop
         animate();
         
         console.log('✓ Virtual tour initialized successfully!');
@@ -605,5 +556,5 @@ async function init() {
     }
 }
 
-// Start the application when the page loads
+// start the application when the page loads
 window.addEventListener('DOMContentLoaded', init);
