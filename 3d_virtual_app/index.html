@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Virtual Tour - Optimized</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #0f0f1e;
+            color: #e0e0e0;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #canvas3d {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Loading Screen */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease-out;
+        }
+
+        .loading-content {
+            text-align: center;
+            color: #e0e0e0;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 20px;
+            border: 4px solid #444;
+            border-top: 4px solid #00d9ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-content h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #00d9ff;
+        }
+
+        .loading-content p {
+            font-size: 14px;
+            color: #999;
+            margin-bottom: 20px;
+        }
+
+        .progress-bar {
+            width: 300px;
+            height: 6px;
+            background: #2a2a3e;
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 0 auto;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d9ff 0%, #00ff88 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* Minimal Info Panel - Bottom Left */
+        #info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(26, 26, 46, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 15px 20px;
+            border-radius: 10px;
+            border: 2px solid rgba(0, 217, 255, 0.3);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            font-size: 16px;
+            color: #00d9ff;
+            font-weight: 600;
+            min-width: 180px;
+            text-align: center;
+        }
+
+        /* Instructions Panel - Top Right */
+        #instructions {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(26, 26, 46, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 15px 20px;
+            border-radius: 10px;
+            border: 2px solid rgba(0, 217, 255, 0.3);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            font-size: 13px;
+            max-width: 280px;
+            color: #ccc;
+            line-height: 1.8;
+        }
+
+        #instructions h3 {
+            color: #00d9ff;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        #instructions .control-line {
+            margin: 6px 0;
+        }
+
+        #instructions .key {
+            display: inline-block;
+            background: #2a2a3e;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #00ff88;
+            border: 1px solid #444;
+            margin-right: 6px;
+        }
+
+        /* Legend - Bottom Right */
+        #legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(26, 26, 46, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 15px 20px;
+            border-radius: 10px;
+            border: 2px solid rgba(0, 217, 255, 0.3);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            font-size: 12px;
+            max-width: 220px;
+        }
+
+        #legend h4 {
+            color: #00d9ff;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            color: #ccc;
+        }
+
+        .legend-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .legend-dot.current {
+            background: #ff0000;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+        }
+
+        .legend-dot.connected {
+            background: #ff6b00;
+            box-shadow: 0 0 8px rgba(255, 107, 0, 0.4);
+        }
+
+        .legend-dot.other {
+            background: #004400;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            #instructions {
+                display: none;
+            }
+            
+            #legend {
+                font-size: 11px;
+                padding: 12px 15px;
+                max-width: 180px;
+            }
+            
+            #info-panel {
+                font-size: 14px;
+                padding: 12px 15px;
+                min-width: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <!-- Loading Screen -->
+        <div id="loading-screen">
+            <div class="loading-content">
+                <div class="spinner"></div>
+                <h2>Loading Virtual Tour...</h2>
+                <p id="loading-status">Initializing...</p>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Three.js Canvas -->
+        <canvas id="canvas3d"></canvas>
+
+        <!-- Minimal Info Panel - Bottom Left -->
+        <div id="info-panel">
+            <span id="camera-info">Camera 1 / 0</span>
+        </div>
+
+        <!-- Instructions - Top Right -->
+        <div id="instructions">
+            <h3>🎮 Controls</h3>
+            <div class="control-line">
+                <span class="key">Click</span> Camera markers to navigate
+            </div>
+            <div class="control-line">
+                <span class="key">←</span> <span class="key">→</span> Previous / Next camera
+            </div>
+            <div class="control-line">
+                <span class="key">Mouse</span> Drag to orbit, scroll to zoom
+            </div>
+            <div class="control-line">
+                <span class="key">P</span> Toggle point cloud
+            </div>
+            <div class="control-line">
+                <span class="key">Home</span> <span class="key">End</span> First / Last camera
+            </div>
+        </div>
+
+        <!-- Legend - Bottom Right -->
+        <div id="legend">
+            <h4>Camera Markers</h4>
+            <div class="legend-item">
+                <div class="legend-dot current"></div>
+                <span>Current Position</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot connected"></div>
+                <span>Connected Cameras</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot other"></div>
+                <span>Other Cameras</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- PLY Loader -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/PLYLoader.js"></script>
+    
+    <!-- Main Application Script -->
+    <script src="app.js"></script>
+</body>
+</html>
