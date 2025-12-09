@@ -1,0 +1,13 @@
+AI support was used only in the following areas:
+
+1. Clarifying the Conceptual Scope of Phase 3  
+   We used AI to help me better express and refine the high-level goals of Phase 3—mainly to understand how the viewer, camera graph, and visualization are supposed to fit together. The assistance was conceptual and explanatory, not implementation-based.
+
+2. UI Development for the Web App  
+   We used AI to get suggestions on how to structure the layout and how to organize and clean up my style.css file for the simple 3D viewer. These suggestions helped me improve readability and overall design consistency, but all code was edited, adapted, and tested by me before being used.
+
+3. Understanding the Graph Structure and PLY Export  
+   We asked AI for clarification on how scene graphs are typically represented and how .ply files are structured for point-cloud visualization. This guidance was limited to understanding the format and the required fields. 
+
+4. Language and Structuring
+  Limited AI through Grammarly was used for the structuring of the Final Report, only to the extent of the language, and its final conversion to LaTex, not for any technical terminology employed. These were not tasks done entirely by any LLM or AI tool, and still involved us creating base drafts which were only refined upon.
